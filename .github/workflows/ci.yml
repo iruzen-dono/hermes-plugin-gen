@@ -31,10 +31,20 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff
+          # Pinned on purpose: an unpinned `pip install ruff` ships the newest
+          # release every time, and when ruff's default rule set grew this CI
+          # turned red without a single line of this repository changing.
+          pip install ruff==0.17.4
 
       - name: Check syntax
         run: python -m compileall . -f -q
 
       - name: Lint with ruff
         run: ruff check .
+
+      # unittest, not pytest: the repository root carries an __init__.py (it is
+      # a Hermes plugin package), so pytest imports the root as a top-level
+      # module and every test dies with "attempted relative import with no
+      # known parent package".
+      - name: Run tests
+        run: python -m unittest discover -s tests -v

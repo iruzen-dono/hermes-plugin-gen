@@ -1,0 +1,24 @@
+# Ruff configuration — pinned explicitly so CI cannot change behaviour on its own.
+#
+# This file did not exist before, and `pip install ruff` always fetches the
+# latest release. When ruff's default rule set grew, a green CI turned red
+# without a single line of this repository changing. Pinning the selection here
+# makes the lint result a property of the code, not of the release date.
+
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = [
+    "E4", # pycodestyle: imports and indentation
+    "E7", # pycodestyle: statements
+    "E9", # pycodestyle: runtime errors
+    "F",  # pyflakes: undefined names, unused imports and variables
+]
+
+ignore = [
+    # The repository root is itself a Hermes plugin package (it carries an
+    # __init__.py), and "hermes-plugin-gen" is not a valid Python module name.
+    # That is the plugin layout, not a mistake.
+    "N999",
+]
