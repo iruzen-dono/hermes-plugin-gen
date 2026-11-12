@@ -139,6 +139,36 @@ def _pascal(name: str) -> str:
     return "".join(w.capitalize() for w in name.replace("-", " ").replace("_", " ").split())
 
 
+def _ensure_skill_frontmatter(content: str, name: str, description: str) -> str:
+    """Make sure the SKILL.md carries `name` and `description` in its frontmatter.
+
+    ``plugin_add_skill`` declares ``skill_description`` as a required parameter,
+    so a description the caller sent must actually reach the written file.
+    Existing frontmatter is preserved; keys already present are left untouched.
+    """
+    if not description:
+        return content
+
+    description_line = f"description: {json.dumps(description)}"
+
+    if content.startswith("---"):
+        end = content.find("\n---", 3)
+        if end == -1:
+            # Opening fence never closed: the file is already malformed, and
+            # stacking a second frontmatter on top would make it worse.
+            return content
+        frontmatter = content[3:end]
+        if "description:" in frontmatter:
+            return content
+        extra = ""
+        if "name:" not in frontmatter:
+            extra += f"\nname: {json.dumps(name)}"
+        extra += f"\n{description_line}"
+        return "---" + frontmatter.rstrip() + extra + content[end:]
+
+    return f'---\nname: {json.dumps(name)}\n{description_line}\n---\n\n{content}'
+
+
 def _guess_emoji(name: str) -> str:
     """Guess a reasonable emoji for a tool based on its name."""
     emoji_map = {
@@ -238,17 +268,17 @@ def _make_register_tool_lines(tools: list[dict], has_env_vars: bool,
         desc = t.get("description", "").replace('"', "'")
 
         has_check = has_env_vars  # all tools share check_requirements when env vars exist
-        lines.append(f'ctx.register_tool(')
+        lines.append('ctx.register_tool(')
         lines.append(f'    name="{norm_name}",')
         lines.append(f'    toolset="{norm_name.split("-")[0] if "-" in norm_name else norm_name}",')
         lines.append(f'    schema=schemas.{var_name},')
         lines.append(f'    handler=tools.{t_name},')
         if has_check:
-            lines.append(f'    check_fn=tools.check_requirements,')
+            lines.append('    check_fn=tools.check_requirements,')
         lines.append(f'    description="{desc}",')
         lines.append(f'    emoji="{emoji}",')
-        lines.append(f'    is_async=False,')
-        lines.append(f')')
+        lines.append('    is_async=False,')
+        lines.append(')')
     return "\n".join(lines)
 
 
@@ -373,7 +403,7 @@ def plugin_scaffold(args: dict, **kwargs) -> str:
 
         hooks_block = ""
         if has_hooks:
-            hooks_block = f"""
+            hooks_block = """
     # Lifecycle hooks
     ctx.register_hook("pre_tool_call", tools.pre_tool_call_hook)
     ctx.register_hook("post_tool_call", tools.post_tool_call_hook)
@@ -381,7 +411,7 @@ def plugin_scaffold(args: dict, **kwargs) -> str:
 
         skill_reg_block = ""
         if with_skill:
-            skill_reg_block = f"""
+            skill_reg_block = """
 
     # Bundle skills
     skills_dir = Path(__file__).parent / "skills"
@@ -588,7 +618,8 @@ def plugin_add_skill(args: dict, **kwargs) -> str:
         skill_dir = plugin_path / "skills" / skill_name
         skill_dir.mkdir(parents=True, exist_ok=True)
         skill_path = skill_dir / "SKILL.md"
-        skill_path.write_text(skill_content, encoding="utf-8")
+        skill_md = _ensure_skill_frontmatter(skill_content, skill_name, skill_description)
+        skill_path.write_text(skill_md, encoding="utf-8")
 
         # Update __init__.py
         init_path = plugin_path / "__init__.py"
